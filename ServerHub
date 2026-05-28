@@ -1,0 +1,314 @@
+-- ============================================
+-- ServerHub By IlyaHacker
+-- GitHub: SovietIlyaGG/ServerHub
+-- Версия: 3.0 (Один файл)
+-- ============================================
+
+local Players = game:GetService("Players")
+local Player = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+
+local Config = {
+    theme = "green",
+    ghostMode = false,
+    fakeName = "Player_" .. math.random(1000, 9999),
+    hyperToolActive = false,
+    rainbowName = false,
+    notificationsOn = true
+}
+
+local function Notify(title, text, color)
+    if not Config.notificationsOn then return end
+    local gui = Instance.new("ScreenGui")
+    gui.Name = "Notif"
+    gui.ResetOnSpawn = false
+    gui.Parent = Player.PlayerGui
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0, 300, 0, 50)
+    frame.Position = UDim2.new(1, -310, 1, -60)
+    frame.BackgroundColor3 = Color3.fromRGB(20,20,20)
+    frame.BorderSizePixel = 1
+    frame.BorderColor3 = color or Color3.fromRGB(0,255,0)
+    frame.Parent = gui
+    
+    local titleL = Instance.new("TextLabel")
+    titleL.Size = UDim2.new(1,-10,0,20)
+    titleL.Position = UDim2.new(0,5,0,5)
+    titleL.BackgroundTransparency = 1
+    titleL.Text = title
+    titleL.TextColor3 = color or Color3.fromRGB(0,255,0)
+    titleL.TextSize = 13
+    titleL.Font = Enum.Font.SourceSans
+    titleL.TextXAlignment = Enum.TextXAlignment.Left
+    titleL.Parent = frame
+    
+    local msgL = Instance.new("TextLabel")
+    msgL.Size = UDim2.new(1,-10,0,25)
+    msgL.Position = UDim2.new(0,5,0,22)
+    msgL.BackgroundTransparency = 1
+    msgL.Text = text
+    msgL.TextColor3 = Color3.fromRGB(200,200,200)
+    msgL.TextSize = 11
+    msgL.Font = Enum.Font.SourceSans
+    msgL.TextWrapped = true
+    msgL.Parent = frame
+    
+    frame:TweenPosition(UDim2.new(1, -310, 1, -60), "Out", "Quad", 0.3)
+    task.wait(3)
+    frame:TweenPosition(UDim2.new(1, 10, 1, -60), "Out", "Quad", 0.3)
+    task.wait(0.3)
+    gui:Destroy()
+end
+
+local oldNamecall = hookmetamethod(game, "__namecall", function(self, ...)
+    local method = getnamecallmethod()
+    if method == "FireServer" and tostring(self):lower():find("anticheat") then
+        return nil
+    end
+    return oldNamecall(self, ...)
+end)
+
+local hyperActive = false
+local hyperConn = nil
+
+local function toggleHyper()
+    hyperActive = not hyperActive
+    if hyperActive then
+        local mouse = Player:GetMouse()
+        hyperConn = mouse.Button1Down:Connect(function()
+            local target = mouse.Target
+            if target and target:IsA("BasePart") and target ~= Player.Character then
+                local occupants = {}
+                for _, other in ipairs(Players:GetPlayers()) do
+                    if other ~= Player and other.Character and other.Character:FindFirstChild("HumanoidRootPart") then
+                        local root = other.Character.HumanoidRootPart
+                        if root and (root.Position - target.Position).Magnitude < 10 then
+                            table.insert(occupants, other)
+                        end
+                    end
+                end
+                target:Destroy()
+                Notify("Hyper Tool", "Уничтожено: " .. target.Name, Color3.fromRGB(255,100,0))
+                for _, victim in ipairs(occupants) do
+                    if victim.Character and victim.Character:FindFirstChild("HumanoidRootPart") then
+                        victim.Character.HumanoidRootPart.CFrame = victim.Character.HumanoidRootPart.CFrame + Vector3.new(0, -15, 0)
+                        Notify("Hyper Tool", victim.Name .. " выпал", Color3.fromRGB(255,100,0))
+                    end
+                end
+            end
+        end)
+        Notify("Hyper Tool", "Активирован | Кликай по постройкам", Color3.fromRGB(0,255,0))
+    else
+        if hyperConn then hyperConn:Disconnect() end
+        Notify("Hyper Tool", "Деактивирован", Color3.fromRGB(255,0,0))
+    end
+end
+
+local rainbowActive = false
+local rainbowTask = nil
+
+local function toggleRainbow()
+    rainbowActive = not rainbowActive
+    if rainbowActive then
+        rainbowTask = task.spawn(function()
+            local hue = 0
+            while rainbowActive and task.wait(0.1) do
+                if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+                    Player.Character.Humanoid.NameColor3 = Color3.fromHSV(hue, 1, 1)
+                    hue = hue + 0.02
+                    if hue > 1 then hue = 0 end
+                end
+            end
+        end)
+        Notify("Rainbow Name", "Включён", Color3.fromRGB(0,255,0))
+    else
+        if rainbowTask then task.cancel(rainbowTask) end
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            Player.Character.Humanoid.NameColor3 = Color3.fromRGB(255,255,255)
+        end
+        Notify("Rainbow Name", "Выключен", Color3.fromRGB(255,0,0))
+    end
+end
+
+local ghostActive = false
+local originalName = nil
+
+local function toggleGhost()
+    ghostActive = not ghostActive
+    if ghostActive then
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") then
+            originalName = Player.Character.Humanoid.DisplayName
+            Player.Character.Humanoid.DisplayName = Config.fakeName
+        end
+        Notify("Ghost Mode", "Теперь вы: " .. Config.fakeName, Color3.fromRGB(0,255,0))
+    else
+        if Player.Character and Player.Character:FindFirstChild("Humanoid") and originalName then
+            Player.Character.Humanoid.DisplayName = originalName
+        end
+        Notify("Ghost Mode", "Выключен", Color3.fromRGB(255,0,0))
+    end
+end
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ServerHub"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = Player.PlayerGui
+
+local button = Instance.new("ImageButton")
+button.Size = UDim2.new(0, 55, 0, 55)
+button.Position = UDim2.new(0, 15, 0, 100)
+button.BackgroundColor3 = Color3.fromRGB(0, 200, 0)
+button.BackgroundTransparency = 0.15
+button.BorderSizePixel = 2
+button.BorderColor3 = Color3.fromRGB(0, 200, 0)
+button.Image = "rbxassetid://0"
+button.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(1, 0)
+corner.Parent = button
+
+local btnText = Instance.new("TextLabel")
+btnText.Size = UDim2.new(1, 0, 1, 0)
+btnText.BackgroundTransparency = 1
+btnText.Text = "⚡"
+btnText.TextColor3 = Color3.fromRGB(255,255,255)
+btnText.TextSize = 30
+btnText.Font = Enum.Font.SourceSansBold
+btnText.Parent = button
+
+local menuOpen = false
+local mainMenu = nil
+
+local function createMenu()
+    if mainMenu then return end
+    
+    mainMenu = Instance.new("Frame")
+    mainMenu.Size = UDim2.new(0, 500, 0, 450)
+    mainMenu.Position = UDim2.new(0.5, -250, 0.5, -225)
+    mainMenu.BackgroundColor3 = Color3.fromRGB(10,10,10)
+    mainMenu.BackgroundTransparency = 0.1
+    mainMenu.BorderSizePixel = 2
+    mainMenu.BorderColor3 = Color3.fromRGB(0,200,0)
+    mainMenu.Visible = false
+    mainMenu.Parent = screenGui
+    
+    local menuCorner = Instance.new("UICorner")
+    menuCorner.CornerRadius = UDim.new(0, 8)
+    menuCorner.Parent = mainMenu
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(1,0,0,40)
+    title.Position = UDim2.new(0,0,0,0)
+    title.BackgroundColor3 = Color3.fromRGB(0,0,0)
+    title.BackgroundTransparency = 0.5
+    title.Text = "ServerHub By IlyaHacker"
+    title.TextColor3 = Color3.fromRGB(0,255,0)
+    title.TextSize = 16
+    title.Font = Enum.Font.SourceSans
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.PaddingLeft = UDim.new(0,15)
+    title.Parent = mainMenu
+    
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 30, 0, 30)
+    closeBtn.Position = UDim2.new(1, -38, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+    closeBtn.BorderSizePixel = 1
+    closeBtn.BorderColor3 = Color3.fromRGB(0,200,0)
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.fromRGB(0,200,0)
+    closeBtn.Parent = mainMenu
+    closeBtn.MouseButton1Click:Connect(function() mainMenu.Visible = false menuOpen = false end)
+    
+    local btns = {
+        {text = "🔨 Hyper Tool", y = 60, action = toggleHyper},
+        {text = "👻 Ghost Mode", y = 110, action = toggleGhost},
+        {text = "🌈 Rainbow Name", y = 160, action = toggleRainbow},
+        {text = "🔫 MP5 / M16A4", y = 210, action = function() Notify("Guns", "Выбрано оружие", Color3.fromRGB(0,255,0)) end},
+        {text = "🚁 MI-8", y = 260, action = function() Notify("Vehicles", "Спавн MI-8", Color3.fromRGB(0,255,0)) end},
+        {text = "🛡️ Armor", y = 310, action = function() Notify("Armor", "Броня надета", Color3.fromRGB(0,255,0)) end},
+        {text = "🎨 Theme (G/R/B)", y = 360, action = function()
+            local themes = {"green", "red", "blue"}
+            local colors = {green = Color3.fromRGB(0,255,0), red = Color3.fromRGB(255,0,0), blue = Color3.fromRGB(0,100,255)}
+            local next = "green"
+            if Config.theme == "green" then next = "red"
+            elseif Config.theme == "red" then next = "blue"
+            else next = "green" end
+            Config.theme = next
+            mainMenu.BorderColor3 = colors[next]
+            button.BorderColor3 = colors[next]
+            Notify("Theme", "Тема: " .. next, colors[next])
+        end}
+    }
+    
+    for _, btnData in ipairs(btns) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(0.8, 0, 0, 40)
+        btn.Position = UDim2.new(0.1, 0, 0, btnData.y)
+        btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+        btn.BorderSizePixel = 1
+        btn.BorderColor3 = Color3.fromRGB(0,200,0)
+        btn.Text = btnData.text
+        btn.TextColor3 = Color3.fromRGB(0,255,0)
+        btn.TextSize = 14
+        btn.Font = Enum.Font.SourceSans
+        btn.Parent = mainMenu
+        btn.MouseButton1Click:Connect(btnData.action)
+        
+        local btnCorner = Instance.new("UICorner")
+        btnCorner.CornerRadius = UDim.new(0, 4)
+        btnCorner.Parent = btn
+    end
+    
+    local drag = {active = false, start = nil, pos = nil}
+    title.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            drag.active = true
+            drag.start = input.Position
+            drag.pos = mainMenu.Position
+        end
+    end)
+    title.InputEnded:Connect(function() drag.active = false end)
+    title.InputChanged:Connect(function(input)
+        if drag.active and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - drag.start
+            mainMenu.Position = UDim2.new(0, drag.pos.X.Offset + delta.X, 0, drag.pos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+button.MouseButton1Click:Connect(function()
+    if not mainMenu then createMenu() end
+    mainMenu.Visible = not mainMenu.Visible
+    menuOpen = mainMenu.Visible
+    btnText.Text = menuOpen and "✕" or "⚡"
+end)
+
+local dragBtn = {active = false, start = nil, pos = nil}
+button.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragBtn.active = true
+        dragBtn.start = input.Position
+        dragBtn.pos = button.Position
+    end
+end)
+button.InputEnded:Connect(function() dragBtn.active = false end)
+button.InputChanged:Connect(function(input)
+    if dragBtn.active then
+        local delta = input.Position - dragBtn.start
+        local newX = math.clamp(dragBtn.pos.X.Offset + delta.X, 0, screenGui.AbsoluteSize.X - 55)
+        local newY = math.clamp(dragBtn.pos.Y.Offset + delta.Y, 0, screenGui.AbsoluteSize.Y - 55)
+        button.Position = UDim2.new(0, newX, 0, newY)
+    end
+end)
+
+Notify("ServerHub", "База загружена | Hyper Tool, Ghost Mode, Rainbow Name", Color3.fromRGB(0,255,0))
+print("========================================")
+print("ServerHub By IlyaHacker")
+print("Статус: АКТИВЕН")
+print("Нажми на круглую кнопку ⚡")
+print("========================================")
